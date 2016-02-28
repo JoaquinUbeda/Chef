@@ -10,7 +10,7 @@
 #keep info up-to-date
 if node["platform"] == "ubuntu"
 		execute "apt-get update -y" do
-	end
+		end
 end
 
 # package "apache2" is just naming the package
@@ -19,22 +19,25 @@ package "apache2" do
 end
 
 node["apache"]["sites"].each do |sitename, data|
-  document_root = "/content/sites/#{sitename}"
+
+	if node["platform"] == "ubuntu"
+			document_root = "/var/www/html/#{sitename}"
+			template_vhost_location = "/etc/apache2/sites-enabled/#{sitename}.conf"
+			template_index_location = "/var/www/html/#{sitename}/index.html"
+	elsif node["platform"] == "centos"
+			document_root = "/content/sites/#{sitename}"
+			template_vhost_location = "/etc/httpd/conf.d/#{sitename}.conf"
+			template_index_location = "/content/sites/#{sitename}/index.html"
+	end
 
   directory document_root do
 		mode "0755"
 		recursive true
   end
 
-	if node["platform"] == "ubuntu"
-			template_location = "/etc/apache2/sites-enabled/#{sitename}.conf"
-	elsif node["platform"] == "centos"
-			template_location = "/etc/httpd/conf.d/#{sitename}.conf"
-	end
-
-  template template_location do
+  template template_vhost_location do
 		source "vhost.erb"
-		mode "0644"
+		mode "0755"
 		variables(
 			:document_root => document_root,
 			:port => data["port"],
@@ -42,7 +45,8 @@ node["apache"]["sites"].each do |sitename, data|
 			)
 			notifies :restart, "service[httpd]"
   end
-	template "/content/sites/#{sitename}/index.html" do
+# Ubuntu only allows content on /var/www/html
+	template template_index_location do
 		source "index.html.erb"
 		mode "0644"
 		variables(
@@ -74,4 +78,4 @@ service "httpd" do
 
 end
 
-#include_recipe "php::default"
+include_recipe "php::default"
